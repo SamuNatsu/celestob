@@ -3,7 +3,7 @@ use std::{collections::HashSet, fs, sync::OnceLock};
 use anyhow::{bail, Result};
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Config {
     #[serde(default = "Config::default_bind_addr")]
     pub bind_addr: String,
@@ -12,6 +12,7 @@ pub struct Config {
     pub bind_port: u16,
 
     pub db_url: String,
+    pub secret: Option<String>,
 
     #[serde(default)]
     pub services: Vec<ConfigService>,
@@ -59,7 +60,7 @@ impl Config {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ConfigService {
     Http {

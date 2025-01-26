@@ -1,6 +1,7 @@
 mod api;
 mod config;
 mod error;
+mod middleware;
 mod model;
 mod task;
 mod utils;
@@ -17,7 +18,7 @@ use mimalloc::MiMalloc;
 use sea_orm::Database;
 use tokio::{net::TcpListener, signal};
 use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
-use tracing::info;
+use tracing::{debug, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[global_allocator]
@@ -36,6 +37,7 @@ async fn main() -> Result<()> {
 
     // Load config
     let cfg = Config::get_instance();
+    debug!("configs: {:?}", cfg);
 
     // Initialize database
     let db = Database::connect(&cfg.db_url).await?;
@@ -63,6 +65,8 @@ async fn main() -> Result<()> {
     let serve_dir = ServeDir::new("www");
     let app = Router::new()
         .nest("/api", api_router)
+        .fallback_service(serve_dir)
+        .layer(axum::middleware::from_fn(middleware::auth))
         .layer(TraceLayer::new_for_http())
         .layer(
             CompressionLayer::new()
@@ -70,8 +74,7 @@ async fn main() -> Result<()> {
                 .deflate(true)
                 .br(true)
                 .zstd(true),
-        )
-        .fallback_service(serve_dir);
+        );
 
     // Start listening
     let listener = TcpListener::bind((cfg.bind_addr.as_str(), cfg.bind_port)).await?;
