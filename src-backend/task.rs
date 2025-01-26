@@ -67,10 +67,12 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
                 all: true,
                 ..Default::default()
             }))
-            .await?;
+            .await?
+            .into_iter()
+            .filter(|r| r.names.is_some() && r.state.is_some());
 
         // For named containers
-        for r in result.iter().filter(|r| r.names.is_some()) {
+        for r in result {
             // Extract name
             let names = r.names.as_ref().unwrap();
             if names.is_empty() {
@@ -90,6 +92,16 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
                 continue;
             }
             let name = service.unwrap().get_name();
+
+            // Check state
+            if r.state.as_ref().unwrap() != "running" {
+                debug!(
+                    "container down: name={}, state={}",
+                    name,
+                    r.state.as_ref().unwrap()
+                );
+                continue;
+            }
 
             // Create heartbeat
             let heartbeat = heartbeat::ActiveModel {
