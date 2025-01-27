@@ -6,13 +6,14 @@ const props = defineProps<{ stat: (number | null)[] }>();
 
 // Computed
 const getPercent = computed((): number => {
-  const tmp: number[] = props.stat.filter(
-    (v: number | null): boolean => v !== null
-  ) as number[];
-  const sum: number = tmp
+  const tmp: number[] = props.stat
     .slice(1)
-    .reduce((prev: number, cur: number): number => prev + Math.min(cur, 11));
-  return (sum / (11 * (tmp.length - 1))) * 100;
+    .filter((v: number | null): boolean => v !== null) as number[];
+  const sum: number = tmp.reduce(
+    (prev: number, cur: number): number => prev + Math.min(cur, 11),
+    0
+  );
+  return (sum / (11 * tmp.length)) * 100;
 });
 const getColor = computed((): string => {
   if (getPercent.value >= 90) {
