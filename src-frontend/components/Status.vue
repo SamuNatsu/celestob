@@ -23,6 +23,8 @@ const getColor = computed(
         return 'bg-green-500';
       } else if (count >= 7) {
         return 'bg-yellow-500';
+      } else if (count > 0) {
+        return 'bg-orange-500';
       } else {
         return 'bg-red-500';
       }

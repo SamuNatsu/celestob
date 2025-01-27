@@ -9,6 +9,10 @@ const getPercent = computed((): number => {
   const tmp: number[] = props.stat
     .slice(1)
     .filter((v: number | null): boolean => v !== null) as number[];
+  if (tmp.length === 0) {
+    return 0;
+  }
+
   const sum: number = tmp.reduce(
     (prev: number, cur: number): number => prev + Math.min(cur, 11),
     0
@@ -20,6 +24,8 @@ const getColor = computed((): string => {
     return 'bg-green-500';
   } else if (getPercent.value >= 60) {
     return 'bg-yellow-500';
+  } else if (getPercent.value > 0) {
+    return 'bg-orange-500';
   } else {
     return 'bg-red-500';
   }
