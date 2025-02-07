@@ -35,16 +35,22 @@ const getColor = computed(
 <template>
   <div
     class="flex flex-row-reverse gap-[min(calc(var(--spacing)),0.5%)] items-center justify-end px-2 w-full">
-    <Tooltip v-for="(j, idx) in stat">
-      <div class="h-4 rounded w-1" :class="getColor(j, idx)"></div>
+    <Tooltip v-for="idx in 48">
+      <div
+        class="h-4 rounded w-1"
+        :class="getColor(stat[idx - 1] ?? null, idx - 1)"></div>
       <template #tip>
         <span class="text-neutral-300 text-xs">{{
-          moment(pivot).subtract(idx, 'hours').format('YYYY/MM/DD@HHZ')
+          moment(pivot)
+            .subtract(idx - 1, 'hours')
+            .format('YYYY/MM/DD@HHZ')
         }}</span>
         <br />
-        <span v-if="j === null">No data</span>
+        <span v-if="(stat[idx - 1] ?? null) === null">No data</span>
         <span v-else
-          >{{ j }}/11 ({{ Math.min(100, (j / 11) * 100).toFixed(0) }}%)</span
+          >{{ stat[idx - 1] }}/11 ({{
+            Math.min(100, (stat[idx - 1]! / 11) * 100).toFixed(0)
+          }}%)</span
         >
       </template>
     </Tooltip>

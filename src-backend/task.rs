@@ -117,10 +117,11 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
 
     async fn wrapper_2(db: &DatabaseConnection) -> Result<()> {
         let cfg = Config::get_instance();
+        let now = Utc::now();
 
         // <service name, [(timestamp, count)]>
         let status = heartbeat::Entity::find()
-            .filter(heartbeat::Column::Timestamp.gte(Utc::now() - Duration::hours(3)))
+            .filter(heartbeat::Column::Timestamp.gte(now - Duration::hours(3)))
             .all(db)
             .await?
             .into_iter()
@@ -141,11 +142,13 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
             })
             .collect::<HashMap<_, _>>();
 
-        // Extract timestamps
-        let tms = status
-            .iter()
-            .flat_map(|(_, v)| v.iter().map(|(tm, _)| tm).collect::<Vec<_>>())
-            .collect::<Vec<_>>();
+        // Activate timestamps
+        let tms = vec![
+            now.format("%Y-%m-%dT%H:00:00%:z").to_string(),
+            (now - Duration::hours(1))
+                .format("%Y-%m-%dT%H:00:00%:z")
+                .to_string(),
+        ];
 
         // Subroutine for insert/update status
         async fn save_status(
@@ -185,35 +188,21 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
 
         // For each service
         for s in &cfg.services {
-            match s {
-                ConfigService::Http { name, .. } => {
-                    let name = format!("http:{}", name);
-                    match status.get(&name) {
-                        Some(status) => {
-                            for (timestamp, count) in status {
-                                save_status(db, &name, timestamp, *count as i32).await?;
-                            }
-                        }
-                        None => {
-                            for timestamp in &tms {
-                                save_status(db, &name, timestamp, 0).await?;
-                            }
-                        }
+            let name = if let ConfigService::Http { .. } = s {
+                format!("http:{}", s.get_name())
+            } else {
+                format!("docker:{}", s.get_name())
+            };
+
+            match status.get(&name) {
+                Some(status) => {
+                    for (timestamp, count) in status {
+                        save_status(db, &name, timestamp, *count as i32).await?;
                     }
                 }
-                ConfigService::Docker { name, .. } => {
-                    let name = format!("docker:{}", name);
-                    match status.get(&name) {
-                        Some(status) => {
-                            for (timestamp, count) in status {
-                                save_status(db, &name, timestamp, *count as i32).await?;
-                            }
-                        }
-                        None => {
-                            for timestamp in &tms {
-                                save_status(db, &name, timestamp, 0).await?;
-                            }
-                        }
+                None => {
+                    for timestamp in &tms {
+                        save_status(db, &name, timestamp, 0).await?;
                     }
                 }
             }
