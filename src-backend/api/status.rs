@@ -53,7 +53,7 @@ pub async fn handler(State(db): State<DatabaseConnection>) -> Result<Json<Respon
             .map(|v| (v.timestamp, v.count))
             .collect::<HashMap<_, _>>();
 
-        (0..48)
+        let mut tmp = (0..48)
             .into_iter()
             .map(|i| {
                 tmp.get(
@@ -63,7 +63,12 @@ pub async fn handler(State(db): State<DatabaseConnection>) -> Result<Json<Respon
                 )
                 .map(|v| v.clone())
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        while tmp.len() > 0 && tmp.last().unwrap().is_none() {
+            tmp.pop();
+        }
+
+        tmp
     }
 
     // Compute return services

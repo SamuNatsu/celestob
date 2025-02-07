@@ -10,7 +10,7 @@ const getPercent = computed((): number => {
     .slice(1)
     .filter((v: number | null): boolean => v !== null) as number[];
   if (tmp.length === 0) {
-    return 0;
+    return 100;
   }
 
   const sum: number = tmp.reduce(
