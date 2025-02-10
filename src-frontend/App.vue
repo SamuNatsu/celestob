@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { version } from '../package.json';
 import { onBeforeMount, ref, type Ref } from 'vue';
 
 // Components
@@ -23,7 +24,13 @@ const status: Ref<Status | null> = ref(null);
 // Hooks
 onBeforeMount((): void => {
   fetch('/api/status')
-    .then((r: Response): Promise<Status> => r.json())
+    .then((r: Response): Promise<Status> => {
+      if (r.status >= 400) {
+        throw r.statusText;
+      }
+
+      return r.json();
+    })
     .then((v: Status): void => {
       status.value = v;
     })
@@ -61,9 +68,10 @@ onBeforeMount((): void => {
 
     <hr class="border-t-2 border-t-blue-500 my-2" />
 
-    <footer>
+    <footer class="flex gap-2 items-center text-sm">
+      <p>v{{ version }}</p>
       <a
-        class="text-sm hover:text-blue-500"
+        class="hover:text-blue-500"
         href="https://github.com/SamuNatsu/celestob"
         rel="noopener noreferer"
         target="_blank"
