@@ -54,11 +54,11 @@ pub fn clean_database(db: &DatabaseConnection) -> impl Future<Output = ()> {
     }
 }
 
-pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<Output = ()> {
+pub fn check_containers(db: &DatabaseConnection, docker: &Docker) -> impl Future<Output = ()> {
     let task_db = db.clone();
     let task_docker = docker.clone();
 
-    async fn wrapper_1(db: &DatabaseConnection, docker: &Docker) -> Result<()> {
+    async fn wrapper(db: &DatabaseConnection, docker: &Docker) -> Result<()> {
         let cfg = Config::get_instance();
 
         // Get container list
@@ -115,7 +115,45 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
         Ok(())
     }
 
-    async fn wrapper_2(db: &DatabaseConnection) -> Result<()> {
+    async move {
+        loop {
+            // Crontab: */5 * * * * *
+            let now = Utc::now();
+            let next_minute = now.minute() / 5 * 5 + 5;
+            let next_time = if next_minute >= 60 {
+                now.with_minute(next_minute - 60)
+                    .unwrap()
+                    .with_second(0)
+                    .unwrap()
+                    .with_nanosecond(0)
+                    .unwrap()
+                    + Duration::hours(1)
+            } else {
+                now.with_minute(next_minute)
+                    .unwrap()
+                    .with_second(0)
+                    .unwrap()
+                    .with_nanosecond(0)
+                    .unwrap()
+            };
+            let delta = next_time - now;
+            time::sleep(delta.to_std().unwrap()).await;
+
+            // Execute task
+            info!("execute task: check containers");
+            if let Err(err) = wrapper(&task_db, &task_docker).await {
+                error!("task fail: name=check containers, err={}", err);
+            } else {
+                info!("task success: name=check containers");
+            }
+        }
+    }
+}
+
+pub fn collect_status(db: &DatabaseConnection) -> impl Future<Output = ()> {
+    let task_db = db.clone();
+
+    async fn wrapper(db: &DatabaseConnection) -> Result<()> {
         let cfg = Config::get_instance();
         let now = Utc::now();
 
@@ -135,9 +173,9 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
                             v.timestamp.format("%Y-%m-%dT%H:00:00%:z").to_string()
                         })
                         .into_iter()
-                        .k_largest_by(2, |a, b| a.0.cmp(&b.0))
+                        .k_largest_by(3, |a, b| a.0.cmp(&b.0))
                         .map(|(k, v)| (k, v.len()))
-                        .collect::<Vec<_>>(),
+                        .collect::<HashMap<_, _>>(),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -194,17 +232,12 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
                 format!("docker:{}", s.get_name())
             };
 
-            match status.get(&name) {
-                Some(status) => {
-                    for (timestamp, count) in status {
-                        save_status(db, &name, timestamp, *count as i32).await?;
-                    }
-                }
-                None => {
-                    for timestamp in &tms {
-                        save_status(db, &name, timestamp, 0).await?;
-                    }
-                }
+            for timestamp in &tms {
+                let count = status
+                    .get(&name)
+                    .map(|status| status.get(timestamp).unwrap_or(&0))
+                    .unwrap_or(&0);
+                save_status(db, &name, timestamp, *count as i32).await?;
             }
         }
 
@@ -214,42 +247,16 @@ pub fn collect_status(db: &DatabaseConnection, docker: &Docker) -> impl Future<O
 
     async move {
         loop {
-            // Crontab: */5 * * * * *
-            let now = Utc::now();
-            let next_minute = now.minute() / 5 * 5 + 5;
-            let next_time = if next_minute >= 60 {
-                now.with_minute(next_minute - 60)
-                    .unwrap()
-                    .with_second(0)
-                    .unwrap()
-                    .with_nanosecond(0)
-                    .unwrap()
-                    + Duration::hours(1)
-            } else {
-                now.with_minute(next_minute)
-                    .unwrap()
-                    .with_second(0)
-                    .unwrap()
-                    .with_nanosecond(0)
-                    .unwrap()
-            };
-            let delta = next_time - now;
-            time::sleep(delta.to_std().unwrap()).await;
-
-            // Execute tasks
-            info!("execute task: check containers");
-            if let Err(err) = wrapper_1(&task_db, &task_docker).await {
-                error!("task fail: name=check containers, err={}", err);
-            } else {
-                info!("task success: name=check containers");
-            }
-
+            // Execute task
             info!("execute task: collect status");
-            if let Err(err) = wrapper_2(&task_db).await {
+            if let Err(err) = wrapper(&task_db).await {
                 error!("task fail: name=collect status, err={}", err);
             } else {
                 info!("task success: name=collect status");
             }
+
+            // Wait until next time
+            time::sleep(Duration::minutes(4).to_std().unwrap()).await;
         }
     }
 }

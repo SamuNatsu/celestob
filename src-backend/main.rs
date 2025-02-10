@@ -52,7 +52,8 @@ async fn main() -> Result<()> {
 
     // Initialize scheduled tasks
     tokio::spawn(task::clean_database(&db));
-    tokio::spawn(task::collect_status(&db, &docker));
+    tokio::spawn(task::check_containers(&db, &docker));
+    tokio::spawn(task::collect_status(&db));
 
     // Initialize routers
     let api_router = Router::new()

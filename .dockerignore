@@ -3,4 +3,4 @@ node_modules
 target
 www
 config.toml
-test.db
+test.*
